@@ -78,25 +78,30 @@ JMImageCache *_sharedCache = nil;
 
 		dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
 			NSData *data = [NSData dataWithContentsOfURL:[NSURL URLWithString:url]];
-			UIImage *i = [[[UIImage alloc] initWithData:data] autorelease];
+            if (data) {
+            
+                UIImage* i = [[[UIImage alloc] initWithData:data] autorelease];
+                
+                if (!i) return;
+                
+                NSString* cachePath = cachePathForURL(url);
+                NSInvocation* writeInvocation = [NSInvocation invocationWithMethodSignature:[self methodSignatureForSelector:@selector(writeData:toPath:)]];
+                [writeInvocation setTarget:self];
+                [writeInvocation setSelector:@selector(writeData:toPath:)];
+                [writeInvocation setArgument:&data atIndex:2];
+                [writeInvocation setArgument:&cachePath atIndex:3];
 
-			NSString* cachePath = cachePathForURL(url);
-			NSInvocation* writeInvocation = [NSInvocation invocationWithMethodSignature:[self methodSignatureForSelector:@selector(writeData:toPath:)]];
-			[writeInvocation setTarget:self];
-			[writeInvocation setSelector:@selector(writeData:toPath:)];
-			[writeInvocation setArgument:&data atIndex:2];
-			[writeInvocation setArgument:&cachePath atIndex:3];
+                [self performDiskWriteOperation:writeInvocation];
+                [self setImage:i forURL:url];
 
-			[self performDiskWriteOperation:writeInvocation];
-			[self setImage:i forURL:url];
-
-			dispatch_async(dispatch_get_main_queue(), ^{
+                dispatch_async(dispatch_get_main_queue(), ^{
 				if(d) {
 					if([d respondsToSelector:@selector(cache:didDownloadImage:forURL:)]) {
 						[d cache:self didDownloadImage:i forURL:url];
 					}
 				}
-			});
+                });
+            }
 		});
 
 		return nil;
